@@ -208,11 +208,76 @@ int SearchARecord(char* filename, int RecordID) {
 // MEMBER 2 & 3: Insert New Record (STUB)
 // ============================================================================
 int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference) {
-    // TODO: Member 2 - Handle leaf insertion and finding correct node
-    // TODO: Member 3 - Handle node splitting (Overflow) and parent updates
-    cout << "InsertNewRecordAtIndex: NOT IMPLEMENTED (Member 2 & 3)" << endl;
-    return -1;
+    fstream file(filename, ios::binary | ios::in | ios::out);
+    if (!file.is_open()) {
+        cerr << "Error opening index file.\n";
+        return -1;
+    }
+
+    // prevent duplicate keys
+    int searchResult = SearchARecord(filename, RecordID);
+    if (searchResult != -1) {
+        cout << "Insert failed: Record already exists.\n";
+        file.close();
+        return -1;
+    }
+
+    // leaf to insert into is the last node in history stack
+    if (historyTop < 0) {
+        cout << "Insert failed: Tree is empty or corrupted.\n";
+        file.close();
+        return -1;
+    }
+
+    int leafIndex = historyStack[historyTop];
+    Node leaf;
+
+    file.seekg(leafIndex * sizeof(Node), ios::beg);
+    file.read((char*)&leaf, sizeof(Node));
+
+    // safety check
+    if (leaf.flag != 0) {
+        cout << "Insert failed: Target node is not a leaf.\n";
+        file.close();
+        return -1;
+    }
+
+    // 3) If leaf has space, happy path
+    if (leaf.numKeys < MAX_M) {
+
+        int i = leaf.numKeys - 1;
+
+        // shift keys to keep sorted order
+        while (i >= 0 && RecordID < leaf.recordIDs[i]) {
+            leaf.recordIDs[i + 1] = leaf.recordIDs[i];
+            leaf.references[i + 1] = leaf.references[i];
+            i--;
+        }
+
+        // insert new key
+        leaf.recordIDs[i + 1] = RecordID;
+        leaf.references[i + 1] = Reference;
+        leaf.numKeys++;
+
+        // write leaf back to file
+        file.seekp(leafIndex * sizeof(Node), ios::beg);
+        file.write((char*)&leaf, sizeof(Node));
+
+        cout << "Inserted RecordID " << RecordID
+             << " at leaf node " << leafIndex << endl;
+
+        file.close();
+        return leafIndex;
+    }
+
+    // Member 3 (Splitter)
+    cout << "Leaf node " << leafIndex
+         << " is full. Split required (Member 3).\n";
+
+    file.close();
+    return -1; // Member 3
 }
+
 
 // ============================================================================
 // MEMBER 4 & 5: Delete Record (STUB)
