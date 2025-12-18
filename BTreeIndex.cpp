@@ -1,4 +1,8 @@
 #include "BTreeIndex.h"
+#include <iostream>
+#include <fstream>
+#include <cstring>
+using namespace std;
 
 // ============================================================================
 // GLOBAL HISTORY STACK (Member 1 - Helper)
@@ -31,6 +35,7 @@ Node::Node() {
 // ============================================================================
 // MEMBER 1: FUNCTION 1 - Create Index File
 // ============================================================================
+
 void CreateIndexFileFile(char* filename, int numberOfRecords, int m) {
     ofstream file(filename, ios::binary | ios::trunc);
 
@@ -66,6 +71,7 @@ void CreateIndexFileFile(char* filename, int numberOfRecords, int m) {
          << " empty nodes (m=" << m << ")" << endl;
 }
 
+
 // ============================================================================
 // MEMBER 1: FUNCTION 2 - Display Index File Content
 // ============================================================================
@@ -83,46 +89,31 @@ void DisplayIndexFileContent(char* filename) {
 
     Node node;
     int index = 0;
-
     while (file.read((char*)&node, sizeof(Node))) {
         cout << "\nNode Index: " << index << endl;
-
         if (index == 0) {
             cout << "  Type: FREE LIST HEAD" << endl;
             cout << "  Next Free: " << node.nextFree << endl;
-        } else {
-            if (node.flag == -1) {
-                cout << "  Type: FREE NODE" << endl;
-                cout << "  Next Free: " << node.nextFree << endl;
-            } else if (node.flag == 0) {
-                cout << "  Type: LEAF NODE" << endl;
-                cout << "  Number of Keys: " << node.numKeys << endl;
-                cout << "  Record IDs: ";
-                for (int i = 0; i < node.numKeys; i++) {
-                    cout << node.recordIDs[i] << " ";
-                }
-                cout << endl;
-                cout << "  References: ";
-                for (int i = 0; i < node.numKeys; i++) {
-                    cout << node.references[i] << " ";
-                }
-                cout << endl;
-            } else if (node.flag == 1) {
-                cout << "  Type: NON-LEAF NODE" << endl;
-                cout << "  Number of Keys: " << node.numKeys << endl;
-                cout << "  Record IDs: ";
-                for (int i = 0; i < node.numKeys; i++) {
-                    cout << node.recordIDs[i] << " ";
-                }
-                cout << endl;
-                cout << "  Children Indices: ";
-                for (int i = 0; i <= node.numKeys; i++) {
-                    cout << node.children[i] << " ";
-                }
-                cout << endl;
-            }
+        } else if (node.flag == -1) {
+            cout << "  Type: FREE NODE" << endl;
+            cout << "  Next Free: " << node.nextFree << endl;
+        } else if (node.flag == 0) {
+            cout << "  Type: LEAF NODE" << endl;
+            cout << "  Number of Keys: " << node.numKeys << endl;
+            cout << "  Record IDs: ";
+            for (int i = 0; i < node.numKeys; i++) cout << node.recordIDs[i] << " ";
+            cout << "\n  References: ";
+            for (int i = 0; i < node.numKeys; i++) cout << node.references[i] << " ";
+            cout << endl;
+        } else if (node.flag == 1) {
+            cout << "  Type: NON-LEAF NODE" << endl;
+            cout << "  Number of Keys: " << node.numKeys << endl;
+            cout << "  Record IDs: ";
+            for (int i = 0; i < node.numKeys; i++) cout << node.recordIDs[i] << " ";
+            cout << "\n  Children Indices: ";
+            for (int i = 0; i <= node.numKeys; i++) cout << node.children[i] << " ";
+            cout << endl;
         }
-
         index++;
     }
 
@@ -144,56 +135,41 @@ int SearchARecord(char* filename, int RecordID) {
         return -1;
     }
 
-    // Clear history stack before starting
     clearHistory();
 
-    // Start from Root (Index 1)
     int currentIndex = 1;
     Node currentNode;
 
     while (currentIndex != -1 && currentIndex != 0) {
-        // Add current node to history
         pushHistory(currentIndex);
 
-        // Seek to the current node position
         file.seekg(currentIndex * sizeof(Node), ios::beg);
         file.read((char*)&currentNode, sizeof(Node));
 
-        // If node is free, the tree is empty or corrupted
         if (currentNode.flag == -1) {
             cout << "Search: Node " << currentIndex << " is free. Tree may be empty." << endl;
             file.close();
             return -1;
         }
 
-        // Search for the key in current node
         int i = 0;
-        while (i < currentNode.numKeys && RecordID > currentNode.recordIDs[i]) {
-            i++;
-        }
+        while (i < currentNode.numKeys && RecordID > currentNode.recordIDs[i]) i++;
 
-        // Check if we found the key
         if (i < currentNode.numKeys && RecordID == currentNode.recordIDs[i]) {
-            // Key found!
             if (currentNode.flag == 0) {
-                // Leaf node - return the reference
                 cout << "Record " << RecordID << " found at Node " << currentIndex
                      << ", Reference: " << currentNode.references[i] << endl;
                 file.close();
                 return currentNode.references[i];
             } else {
-                // Non-leaf node - move to appropriate child
                 currentIndex = currentNode.children[i + 1];
             }
         } else {
-            // Key not found in this node
             if (currentNode.flag == 0) {
-                // Leaf node - key doesn't exist
                 cout << "Record " << RecordID << " not found in tree." << endl;
                 file.close();
                 return -1;
             } else {
-                // Non-leaf node - move to appropriate child
                 currentIndex = currentNode.children[i];
             }
         }
@@ -205,16 +181,93 @@ int SearchARecord(char* filename, int RecordID) {
 }
 
 // ============================================================================
-// MEMBER 2 & 3: Insert New Record (STUB)
+// MEMBER 3: Split Node and Recursive Promotion
 // ============================================================================
-int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference) {
+int SplitNodeAndInsert(fstream &file, int nodeIndex, int RecordID, int Reference, int m, int &newChildIndex) {
+    Node fullNode;
+    file.seekg(nodeIndex * sizeof(Node), ios::beg);
+    file.read((char*)&fullNode, sizeof(Node));
+
+    // Create temporary arrays for keys and refs
+    int tempKeys[MAX_M + 1];
+    int tempRefs[MAX_M + 1];
+    int i = 0, j = 0;
+    while (i < fullNode.numKeys && fullNode.recordIDs[i] < RecordID) {
+        tempKeys[j] = fullNode.recordIDs[i];
+        tempRefs[j] = fullNode.references[i];
+        i++; j++;
+    }
+    tempKeys[j] = RecordID;
+    tempRefs[j] = Reference;
+    j++;
+    while (i < fullNode.numKeys) {
+        tempKeys[j] = fullNode.recordIDs[i];
+        tempRefs[j] = fullNode.references[i];
+        i++; j++;
+    }
+
+    int totalKeys = fullNode.numKeys + 1;
+    int medianIndex = totalKeys / 2;
+    int medianKey = tempKeys[medianIndex];
+
+    // Allocate new node from free list
+    Node freeListHead;
+    file.seekg(0, ios::beg);
+    file.read((char*)&freeListHead, sizeof(Node));
+
+    int newNodeIndex = freeListHead.nextFree;
+    if (newNodeIndex == -1) {
+        cerr << "Error: No free nodes available for split.\n";
+        newChildIndex = -1;
+        return -1;
+    }
+
+    Node tempFreeNode;
+    file.seekg(newNodeIndex * sizeof(Node), ios::beg);
+    file.read((char*)&tempFreeNode, sizeof(Node));
+
+    freeListHead.nextFree = tempFreeNode.nextFree;
+    file.seekp(0, ios::beg);
+    file.write((char*)&freeListHead, sizeof(Node));
+
+    Node newNode;
+    newNode.flag = fullNode.flag; // leaf or non-leaf
+    newNode.numKeys = totalKeys - medianIndex - 1;
+
+    for (int k = 0; k < newNode.numKeys; k++) {
+        newNode.recordIDs[k] = tempKeys[medianIndex + 1 + k];
+        newNode.references[k] = tempRefs[medianIndex + 1 + k];
+    }
+
+    fullNode.numKeys = medianIndex;
+    for (int k = 0; k < medianIndex; k++) {
+        fullNode.recordIDs[k] = tempKeys[k];
+        fullNode.references[k] = tempRefs[k];
+    }
+
+    // Write back nodes
+    file.seekp(nodeIndex * sizeof(Node), ios::beg);
+    file.write((char*)&fullNode, sizeof(Node));
+    file.seekp(newNodeIndex * sizeof(Node), ios::beg);
+    file.write((char*)&newNode, sizeof(Node));
+
+    cout << "Split node " << nodeIndex << ", promoted key " << medianKey
+         << " to parent. New node index: " << newNodeIndex << endl;
+
+    newChildIndex = newNodeIndex;
+    return medianKey;
+}
+
+// ============================================================================
+// MEMBER 2 & 3: Insert New Record (Recursive for Parent Split)
+// ============================================================================
+int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference, int m) {
     fstream file(filename, ios::binary | ios::in | ios::out);
     if (!file.is_open()) {
         cerr << "Error opening index file.\n";
         return -1;
     }
 
-    // prevent duplicate keys
     int searchResult = SearchARecord(filename, RecordID);
     if (searchResult != -1) {
         cout << "Insert failed: Record already exists.\n";
@@ -222,7 +275,6 @@ int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference) {
         return -1;
     }
 
-    // leaf to insert into is the last node in history stack
     if (historyTop < 0) {
         cout << "Insert failed: Tree is empty or corrupted.\n";
         file.close();
@@ -231,53 +283,96 @@ int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference) {
 
     int leafIndex = historyStack[historyTop];
     Node leaf;
-
     file.seekg(leafIndex * sizeof(Node), ios::beg);
     file.read((char*)&leaf, sizeof(Node));
 
-    // safety check
-    if (leaf.flag != 0) {
-        cout << "Insert failed: Target node is not a leaf.\n";
-        file.close();
-        return -1;
-    }
-
-    // 3) If leaf has space, happy path
     if (leaf.numKeys < MAX_M) {
-
         int i = leaf.numKeys - 1;
-
-        // shift keys to keep sorted order
         while (i >= 0 && RecordID < leaf.recordIDs[i]) {
             leaf.recordIDs[i + 1] = leaf.recordIDs[i];
             leaf.references[i + 1] = leaf.references[i];
             i--;
         }
-
-        // insert new key
         leaf.recordIDs[i + 1] = RecordID;
         leaf.references[i + 1] = Reference;
         leaf.numKeys++;
 
-        // write leaf back to file
         file.seekp(leafIndex * sizeof(Node), ios::beg);
         file.write((char*)&leaf, sizeof(Node));
-
         cout << "Inserted RecordID " << RecordID
              << " at leaf node " << leafIndex << endl;
-
         file.close();
         return leafIndex;
     }
 
-    // Member 3 (Splitter)
-    cout << "Leaf node " << leafIndex
-         << " is full. Split required (Member 3).\n";
+    // Node full → Split
+    cout << "Leaf node " << leafIndex << " is full. Split required (Member 3).\n";
 
+    int newChildIndex;
+    int promotedKey = SplitNodeAndInsert(file, leafIndex, RecordID, Reference, m, newChildIndex);
+
+    // Handle parent/root recursively
+    int parentIndex = -1;
+    int childIndex = leafIndex;
+
+    for (int h = historyTop - 1; h >= 0; h--) {
+        parentIndex = historyStack[h];
+        Node parentNode;
+        file.seekg(parentIndex * sizeof(Node), ios::beg);
+        file.read((char*)&parentNode, sizeof(Node));
+
+        if (parentNode.numKeys < MAX_M) {
+            int i = parentNode.numKeys - 1;
+            while (i >= 0 && promotedKey < parentNode.recordIDs[i]) {
+                parentNode.recordIDs[i + 1] = parentNode.recordIDs[i];
+                parentNode.children[i + 2] = parentNode.children[i + 1];
+                i--;
+            }
+            parentNode.recordIDs[i + 1] = promotedKey;
+            parentNode.children[i + 2] = newChildIndex;
+            parentNode.numKeys++;
+            parentNode.flag = 1; // non-leaf
+            file.seekp(parentIndex * sizeof(Node), ios::beg);
+            file.write((char*)&parentNode, sizeof(Node));
+            file.close();
+            return parentIndex;
+        } else {
+            // parent full → split
+            int tempChildIndex;
+            promotedKey = SplitNodeAndInsert(file, parentIndex, promotedKey, newChildIndex, m, tempChildIndex);
+            childIndex = parentIndex;
+            newChildIndex = tempChildIndex;
+        }
+    }
+
+    // Root split → create new root
+    Node newRoot;
+    newRoot.flag = 1;
+    newRoot.numKeys = 1;
+    newRoot.recordIDs[0] = promotedKey;
+    newRoot.children[0] = leafIndex;
+    newRoot.children[1] = newChildIndex;
+
+    Node freeListHead;
+    file.seekg(0, ios::beg);
+    file.read((char*)&freeListHead, sizeof(Node));
+
+    int newRootIndex = freeListHead.nextFree;
+    Node tempFreeNode;
+    file.seekg(newRootIndex * sizeof(Node), ios::beg);
+    file.read((char*)&tempFreeNode, sizeof(Node));
+
+    freeListHead.nextFree = tempFreeNode.nextFree;
+    file.seekp(0, ios::beg);
+    file.write((char*)&freeListHead, sizeof(Node));
+
+    file.seekp(newRootIndex * sizeof(Node), ios::beg);
+    file.write((char*)&newRoot, sizeof(Node));
+
+    cout << "Created new root node " << newRootIndex << " with promoted key " << promotedKey << endl;
     file.close();
-    return -1; // Member 3
+    return newRootIndex;
 }
-
 
 // ============================================================================
 // MEMBER 4 & 5: Delete Record (STUB)
@@ -287,4 +382,6 @@ void DeleteRecordFromIndex(char* filename, int RecordID) {
     // TODO: Member 5 - Handle Underflow (Merge/Borrow) and rebalancing
     cout << "DeleteRecordFromIndex: NOT IMPLEMENTED (Member 4 & 5)" << endl;
 }
+
+
 
