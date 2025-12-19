@@ -502,7 +502,7 @@ void mergeWithRight(fstream &file, int parentIndex,int nodeIndex, int siblingInd
 }
 
 
-void DeleteRecordFromIndex(char *filename, int RecordID) {
+void DeleteRecordFromIndex(char *filename, int RecordID, int m) {
     // TODO: Member 4 - Handle finding record and leaf deletion
     // TODO: Member 5 - Handle Underflow (Merge/Borrow) and rebalancing
     fstream file(filename, ios::binary | ios::in | ios::out);
@@ -546,7 +546,7 @@ void DeleteRecordFromIndex(char *filename, int RecordID) {
 
     file.seekg(leafIndex * sizeof(Node), ios::beg);
     file.read((char *) &leaf, sizeof(Node));
-    int minKeys = ceil(5 / 2);
+    int minKeys = ceil(m / 2);
     if (leaf.numKeys > minKeys) {
         int i = 0;
         while (i < leaf.numKeys && leaf.recordIDs[i] != RecordID) i++;
@@ -570,21 +570,21 @@ void DeleteRecordFromIndex(char *filename, int RecordID) {
         return;
     } else {
         if (hasLeftSibling(file, parentIndex, leafIndex, leftSiblingIndex)) {
-            borrowFromLeftSibling(file, parentIndex, leafIndex, leftSiblingIndex, 5);
+            borrowFromLeftSibling(file, parentIndex, leafIndex, leftSiblingIndex, m);
             cout << "Borrowed from left sibling during deletion of RecordID " << RecordID << endl;
             file.close();
             return;
         } else if (hasRightSibling(file, parentIndex, leafIndex, rightSiblingIndex)) {
-            borrowFromRightSibling(file, parentIndex, leafIndex, rightSiblingIndex, 5);
+            borrowFromRightSibling(file, parentIndex, leafIndex, rightSiblingIndex, m);
             cout << "Borrowed from right sibling during deletion of RecordID " << RecordID << endl;
             file.close();
             return;
         } else {
             if(hasLeftSibling(file, parentIndex, leafIndex, leftSiblingIndex)) {
-                mergeWithLeft(file, parentIndex, leafIndex, leftSiblingIndex, true, 5);
+                mergeWithLeft(file, parentIndex, leafIndex, leftSiblingIndex, true, m);
                 cout << "Merged with left sibling during deletion of RecordID " << RecordID << endl;
             } else if(hasRightSibling(file, parentIndex, leafIndex, rightSiblingIndex)) {
-                mergeWithRight(file, parentIndex, leafIndex, rightSiblingIndex, true, 5);
+                mergeWithRight(file, parentIndex, leafIndex, rightSiblingIndex, true, m);
                 cout << "Merged with right sibling during deletion of RecordID " << RecordID << endl;
             }
             file.close();

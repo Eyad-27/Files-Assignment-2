@@ -53,7 +53,7 @@ int SearchARecord(char* filename, int RecordID);
 int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference);
 
 // Member 4 & 5: Delete Record
-void DeleteRecordFromIndex(char* filename, int RecordID);
+void DeleteRecordFromIndex(char* filename, int RecordID, int m);
 
 #endif // BTREEINDEX_H
 
