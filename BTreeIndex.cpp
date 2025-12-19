@@ -377,11 +377,220 @@ int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference, int m) {
 // ============================================================================
 // MEMBER 4 & 5: Delete Record (STUB)
 // ============================================================================
-void DeleteRecordFromIndex(char* filename, int RecordID) {
-    // TODO: Member 4 - Handle finding record and leaf deletion
-    // TODO: Member 5 - Handle Underflow (Merge/Borrow) and rebalancing
-    cout << "DeleteRecordFromIndex: NOT IMPLEMENTED (Member 4 & 5)" << endl;
+bool hasLeftSibling(fstream &file, int parentIndex, int nodeIndex, int &leftSiblingIndex) {
+    return leftSiblingIndex != -1;
+}
+bool hasRightSibling(fstream &file, int parentIndex, int nodeIndex, int &rightSiblingIndex) {
+    return rightSiblingIndex != -1;
+}
+
+int borrowFromLeftSibling(fstream &file, int parentIndex,int nodeIndex, int leftSiblingIndex, int m) {
+    Node node;
+    file.seekg(nodeIndex * sizeof(Node), ios::beg);
+    file.read((char*)&node, sizeof(Node));
+
+    for (int i = node.numKeys; i >= 1 ; i--) {
+        node.recordIDs[i] = node.recordIDs[i - 1];
+        node.references[i] = node.references[i - 1];
+    }
+    Node leftSibling;
+    file.seekg(leftSiblingIndex * sizeof(Node), ios::beg);
+    file.read((char*)&leftSibling, sizeof(Node));
+    node.recordIDs[0] = leftSibling.recordIDs[leftSibling.numKeys - 1];
+    node.references[0] = leftSibling.references[leftSibling.numKeys - 1];
+    node.numKeys++;
+    leftSibling.numKeys--;
+    file.seekp(nodeIndex * sizeof(Node), ios::beg);
+    file.write((char*)&node, sizeof(Node));
+    file.seekp(leftSiblingIndex * sizeof(Node), ios::beg);
+    file.write((char*)&leftSibling, sizeof(Node));
+}
+
+int borrowFromRightSibling(fstream &file, int parentIndex, int nodeIndex, int rightSiblingIndex, int m) {
+    Node node;
+    file.seekg(nodeIndex * sizeof(Node), ios::beg);
+    file.read((char*)&node, sizeof(Node));
+
+    Node rightSibling;
+    file.seekg(rightSiblingIndex * sizeof(Node), ios::beg);
+    file.read((char*)&rightSibling, sizeof(Node));
+
+    node.recordIDs[node.numKeys] = rightSibling.recordIDs[0];
+    node.references[node.numKeys] = rightSibling.references[0];
+    node.numKeys++;
+
+    for (int i = 0; i < rightSibling.numKeys - 1; i++) {
+        rightSibling.recordIDs[i] = rightSibling.recordIDs[i + 1];
+        rightSibling.references[i] = rightSibling.references[i + 1];
+    }
+    rightSibling.numKeys--;
+
+    file.seekp(nodeIndex * sizeof(Node), ios::beg);
+    file.write((char*)&node, sizeof(Node));
+    file.seekp(rightSiblingIndex * sizeof(Node), ios::beg);
+    file.write((char*)&rightSibling, sizeof(Node));
+}
+
+void mergeWithLeft(fstream &file, int parentIndex,int nodeIndex, int siblingIndex, bool isLeftSibling, int m) {
+    if (isLeftSibling) {
+        Node sibling;
+        file.seekg(siblingIndex * sizeof(Node), ios::beg);
+        file.read((char*)&sibling, sizeof(Node));
+
+        Node node;
+        file.seekg(nodeIndex * sizeof(Node), ios::beg);
+        file.read((char*)&node, sizeof(Node));
+
+        for (int i = 0; i < node.numKeys; i++) {
+            sibling.recordIDs[sibling.numKeys + i] = node.recordIDs[i];
+            sibling.references[sibling.numKeys + i] = node.references[i];
+        }
+        sibling.numKeys += node.numKeys;
+
+        file.seekp(siblingIndex * sizeof(Node), ios::beg);
+        file.write((char*)&sibling, sizeof(Node));
+
+        // Mark node as free
+        Node freeListHead;
+        file.seekg(0, ios::beg);
+        file.read((char*)&freeListHead, sizeof(Node));
+
+        node.flag = -1;
+        node.nextFree = freeListHead.nextFree;
+        freeListHead.nextFree = nodeIndex;
+
+        file.seekp(0, ios::beg);
+        file.write((char*)&freeListHead, sizeof(Node));
+        file.seekp(nodeIndex * sizeof(Node), ios::beg);
+        file.write((char*)&node, sizeof(Node));
+    }
+}
+
+void mergeWithRight(fstream &file, int parentIndex,int nodeIndex, int siblingIndex, bool isRightSibling, int m) {
+    if (isRightSibling) {
+        Node node;
+        file.seekg(nodeIndex * sizeof(Node), ios::beg);
+        file.read((char *) &node, sizeof(Node));
+
+        Node sibling;
+        file.seekg(siblingIndex * sizeof(Node), ios::beg);
+        file.read((char *) &sibling, sizeof(Node));
+
+        for (int i = 0; i < sibling.numKeys; i++) {
+            node.recordIDs[node.numKeys + i] = sibling.recordIDs[i];
+            node.references[node.numKeys + i] = sibling.references[i];
+        }
+        node.numKeys += sibling.numKeys;
+
+        file.seekp(nodeIndex * sizeof(Node), ios::beg);
+        file.write((char *) &node, sizeof(Node));
+
+        // Mark sibling as free
+        Node freeListHead;
+        file.seekg(0, ios::beg);
+        file.read((char *) &freeListHead, sizeof(Node));
+
+        sibling.flag = -1;
+        sibling.nextFree = freeListHead.nextFree;
+        freeListHead.nextFree = siblingIndex;
+
+        file.seekp(0, ios::beg);
+        file.write((char *) &freeListHead, sizeof(Node));
+        file.seekp(siblingIndex * sizeof(Node), ios::beg);
+        file.write((char *) &sibling, sizeof(Node));
+    }
 }
 
 
+void DeleteRecordFromIndex(char *filename, int RecordID) {
+    // TODO: Member 4 - Handle finding record and leaf deletion
+    // TODO: Member 5 - Handle Underflow (Merge/Borrow) and rebalancing
+    fstream file(filename, ios::binary | ios::in | ios::out);
+    if (!file.is_open()) {
+        cerr << "Error opening index file.\n";
+        return;
+    }
+
+    int searchResult = SearchARecord(filename, RecordID);
+
+    if (searchResult == -1) {
+        cout << "Delete failed: Record not found.\n";
+        file.close();
+        return;
+    }
+
+    if (historyTop < 0) {
+        cout << "Delete failed: Tree is empty or corrupted.\n";
+        file.close();
+        return;
+    }
+
+    int leafIndex = historyStack[historyTop];
+    Node leaf;
+    int parentIndex = -1;
+    int leftSiblingIndex = -1;
+    int rightSiblingIndex = -1;
+    if (historyTop - 1 >= 0) {
+        parentIndex = historyStack[historyTop - 1];
+        Node parentNode;
+        file.seekg(parentIndex * sizeof(Node), ios::beg);
+        file.read((char *) &parentNode, sizeof(Node));
+        for (int i = 0; i <= parentNode.numKeys; i++) {
+            if (parentNode.children[i] == leafIndex) {
+                if (i - 1 >= 0) leftSiblingIndex = parentNode.children[i - 1];
+                if (i + 1 <= parentNode.numKeys) rightSiblingIndex = parentNode.children[i + 1];
+                break;
+            }
+        }
+    }
+
+    file.seekg(leafIndex * sizeof(Node), ios::beg);
+    file.read((char *) &leaf, sizeof(Node));
+    int minKeys = ceil(5 / 2);
+    if (leaf.numKeys > minKeys) {
+        int i = 0;
+        while (i < leaf.numKeys && leaf.recordIDs[i] != RecordID) i++;
+
+        if (i == leaf.numKeys) {
+            cout << "Delete failed: Record not found in leaf node.\n";
+            file.close();
+            return;
+        }
+
+        for (int j = i; j < leaf.numKeys - 1; j++) {
+            leaf.recordIDs[j] = leaf.recordIDs[j + 1];
+            leaf.references[j] = leaf.references[j + 1];
+        }
+        leaf.numKeys--;
+
+        file.seekp(leafIndex * sizeof(Node), ios::beg);
+        file.write((char *) &leaf, sizeof(Node));
+        cout << "Deleted RecordID " << RecordID << " from leaf node " << leafIndex << endl;
+        file.close();
+        return;
+    } else {
+        if (hasLeftSibling(file, parentIndex, leafIndex, leftSiblingIndex)) {
+            borrowFromLeftSibling(file, parentIndex, leafIndex, leftSiblingIndex, 5);
+            cout << "Borrowed from left sibling during deletion of RecordID " << RecordID << endl;
+            file.close();
+            return;
+        } else if (hasRightSibling(file, parentIndex, leafIndex, rightSiblingIndex)) {
+            borrowFromRightSibling(file, parentIndex, leafIndex, rightSiblingIndex, 5);
+            cout << "Borrowed from right sibling during deletion of RecordID " << RecordID << endl;
+            file.close();
+            return;
+        } else {
+            if(hasLeftSibling(file, parentIndex, leafIndex, leftSiblingIndex)) {
+                mergeWithLeft(file, parentIndex, leafIndex, leftSiblingIndex, true, 5);
+                cout << "Merged with left sibling during deletion of RecordID " << RecordID << endl;
+            } else if(hasRightSibling(file, parentIndex, leafIndex, rightSiblingIndex)) {
+                mergeWithRight(file, parentIndex, leafIndex, rightSiblingIndex, true, 5);
+                cout << "Merged with right sibling during deletion of RecordID " << RecordID << endl;
+            }
+            file.close();
+            return;
+        }
+    }
+
+}
 
