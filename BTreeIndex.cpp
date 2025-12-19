@@ -309,7 +309,7 @@ int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference) {
     file.seekg(leafIndex * sizeof(Node), ios::beg);
     file.read((char*)&leaf, sizeof(Node));
 
-    if (leaf.numKeys < MAX_M) {
+    if (leaf.numKeys < m) {
         int i = leaf.numKeys - 1;
         while (i >= 0 && RecordID < leaf.recordIDs[i]) {
             leaf.recordIDs[i + 1] = leaf.recordIDs[i];
@@ -344,7 +344,7 @@ int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference) {
         file.seekg(parentIndex * sizeof(Node), ios::beg);
         file.read((char*)&parentNode, sizeof(Node));
 
-        if (parentNode.numKeys < MAX_M) {
+        if (parentNode.numKeys < m) {
             int i = parentNode.numKeys - 1;
             while (i >= 0 && promotedKey < parentNode.recordIDs[i]) {
                 parentNode.recordIDs[i + 1] = parentNode.recordIDs[i];
