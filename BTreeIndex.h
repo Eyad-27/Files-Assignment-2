@@ -12,7 +12,7 @@ const int MAX_M = 10;  // Maximum number of descendants (B-Tree order)
 const int MAX_HISTORY = 1000;  // Maximum depth for history stack
 
 // ============================================================================
-// NODE STRUCTURE (Fixed-length binary record)
+// NODE STRUCTURE
 // ============================================================================
 struct Node {
     int flag;                    // 0 = Leaf, 1 = Non-Leaf, -1 = Free
@@ -27,7 +27,7 @@ struct Node {
 };
 
 // ============================================================================
-// GLOBAL HISTORY STACK (Member 1 - Helper)
+// GLOBAL HISTORY STACK
 // ============================================================================
 extern int historyStack[MAX_HISTORY];
 extern int historyTop;
@@ -40,20 +40,20 @@ void clearHistory();
 // FUNCTION PROTOTYPES
 // ============================================================================
 
-// Member 1: Create Index File
+// Eyad: Create Index File
 void CreateIndexFileFile(char* filename, int numberOfRecords, int m);
 
-// Member 1: Display Index File Content
+// Eyad: Display Index File Content
 void DisplayIndexFileContent(char* filename);
 
-// Member 1: Search for a Record
+// Eyad: Search for a Record
 int SearchARecord(char* filename, int RecordID);
 
-// Member 2 & 3: Insert New Record
+// Moaid & Jana: Insert New Record
 int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference);
 
-// Member 4 & 5: Delete Record
-void DeleteRecordFromIndex(char* filename, int RecordID, int m);
+// Yassin & Pedro: Delete Record
+void DeleteRecordFromIndex(char* filename, int RecordID);
 
 #endif // BTREEINDEX_H
 

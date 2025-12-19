@@ -2,55 +2,117 @@
 
 using namespace std;
 
-// ============================================================================
-// MAIN APPLICATION ENTRY POINT
-// Owner: Member 5 (Integration & Testing)
-// ============================================================================
-// CURRENT STATUS:
-// - Validates Member 1's Structure (Create, Display, Search).
-// - Insert & Delete are currently stubs.
-//
-// TODO (Member 5):
-// 1. Once Member 2/3 finish Insertion, test the insert functionality.
-// 2. Once Member 4/5 finish Deletion, test the delete functionality.
-// ============================================================================
-
-
 int main() {
     char filename[] = "btree_index.dat";
-    int numberOfRecords = 10;  // Create file with 10 nodes
-    int m = 5;                 // Order of B-Tree (5 descendants)
-
-    cout << "==================================================" << endl;
-    cout << "B-TREE INDEX FILE MANAGEMENT - MEMBER 1 TESTING" << endl;
-    cout << "==================================================" << endl;
-
-    // Test 1: Create Index File
-    cout << "\n[TEST 1] Creating Index File..." << endl;
-    CreateIndexFileFile(filename, numberOfRecords, m);
-
-    // Test 2: Display Index File Content
-    cout << "\n[TEST 2] Displaying Index File Content..." << endl;
-    DisplayIndexFileContent(filename);
-
-    // Test 3: Search for a record (will not be found in empty tree)
-    cout << "\n[TEST 3] Searching for Record ID 100..." << endl;
-    int result = SearchARecord(filename, 100);
-    cout << "Search Result: " << result << endl;
-
-    // Display history stack
-    cout << "\nHistory Stack (nodes visited): ";
-    for (int i = 0; i <= historyTop; i++) {
-        cout << historyStack[i] << " ";
-    }
-    cout << endl;
+    int m = 5;  // Default B-Tree order
+    int choice;
+    bool fileCreated = false;
 
     cout << "\n==================================================" << endl;
-    cout << "MEMBER 1 TESTING COMPLETE" << endl;
+    cout << "    B-TREE INDEX FILE MANAGEMENT SYSTEM" << endl;
     cout << "==================================================" << endl;
-    cout << "\nNOTE: Insert and Delete functions are stubs for teammates." << endl;
-    cout << "      - Members 2 & 3: Implement InsertNewRecordAtIndex" << endl;
-    cout << "      - Members 4 & 5: Implement DeleteRecordFromIndex" << endl;
+
+    while (true) {
+        cout << "\n" << endl;
+        cout << "==================================================" << endl;
+        cout << "              MAIN MENU" << endl;
+        cout << "==================================================" << endl;
+        cout << "1. Create Index File" << endl;
+        cout << "2. Insert Record" << endl;
+        cout << "3. Search Record" << endl;
+        cout << "4. Delete Record" << endl;
+        cout << "5. Display File Content" << endl;
+        cout << "6. Exit" << endl;
+        cout << "==================================================" << endl;
+        cout << "Enter your choice (1-6): ";
+        cin >> choice;
+
+        switch (choice) {
+            case 1: {
+                // Create Index File
+                int numberOfRecords;
+                cout << "\nEnter number of nodes to allocate: ";
+                cin >> numberOfRecords;
+                cout << "Enter B-Tree order (m): ";
+                cin >> m;
+                CreateIndexFileFile(filename, numberOfRecords, m);
+                fileCreated = true;
+                break;
+            }
+
+            case 2: {
+                // Insert Record
+                if (!fileCreated) {
+                    cout << "\nError: Please create index file first (Option 1)" << endl;
+                    break;
+                }
+                int recordID, reference;
+                cout << "\nEnter Record ID: ";
+                cin >> recordID;
+                cout << "Enter Reference: ";
+                cin >> reference;
+                InsertNewRecordAtIndex(filename, recordID, reference);
+                break;
+            }
+
+            case 3: {
+                // Search Record
+                if (!fileCreated) {
+                    cout << "\nError: Please create index file first (Option 1)" << endl;
+                    break;
+                }
+                int recordID;
+                cout << "\nEnter Record ID to search: ";
+                cin >> recordID;
+                int result = SearchARecord(filename, recordID);
+                if (result != -1) {
+                    cout << "\nReference found: " << result << endl;
+                } else {
+                    cout << "\nRecord not found." << endl;
+                }
+                cout << "\nHistory Stack (nodes visited): ";
+                for (int i = 0; i <= historyTop; i++) {
+                    cout << historyStack[i] << " ";
+                }
+                cout << endl;
+                break;
+            }
+
+            case 4: {
+                // Delete Record
+                if (!fileCreated) {
+                    cout << "\nError: Please create index file first (Option 1)" << endl;
+                    break;
+                }
+                int recordID;
+                cout << "\nEnter Record ID to delete: ";
+                cin >> recordID;
+                DeleteRecordFromIndex(filename, recordID);
+                break;
+            }
+
+            case 5: {
+                // Display File Content
+                if (!fileCreated) {
+                    cout << "\nError: Please create index file first (Option 1)" << endl;
+                    break;
+                }
+                DisplayIndexFileContent(filename);
+                break;
+            }
+
+            case 6: {
+                // Exit
+                cout << "\nExiting B-Tree Index Management System..." << endl;
+                cout << "Goodbye!" << endl;
+                return 0;
+            }
+
+            default: {
+                cout << "\nInvalid choice! Please enter a number between 1 and 6." << endl;
+            }
+        }
+    }
 
     return 0;
 }
