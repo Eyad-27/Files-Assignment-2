@@ -576,7 +576,30 @@ void DeleteRecordFromIndex(char *filename, int RecordID) {
 
     file.seekg(leafIndex * sizeof(Node), ios::beg);
     file.read((char *) &leaf, sizeof(Node));
-    int minKeys = (int)ceil(m / 2.0);
+
+    // Special case: root is a leaf — allow deletion even if it would underflow
+    if (parentIndex == -1) {
+        int i = 0;
+        while (i < leaf.numKeys && leaf.recordIDs[i] != RecordID) i++;
+        if (i == leaf.numKeys) {
+            cout << "Delete failed: Record not found in leaf node.\n";
+            file.close();
+            return;
+        }
+        for (int j = i; j < leaf.numKeys - 1; j++) {
+            leaf.recordIDs[j] = leaf.recordIDs[j + 1];
+            leaf.references[j] = leaf.references[j + 1];
+        }
+        leaf.numKeys--;
+        file.seekp(leafIndex * sizeof(Node), ios::beg);
+        file.write((char *) &leaf, sizeof(Node));
+        cout << "Deleted RecordID " << RecordID << " from leaf node " << leafIndex << endl;
+        file.close();
+        return;
+    }
+
+    // For non-root leaves, enforce minimum keys = ceil((m-1)/2)
+    int minKeys = m / 2;
     if (leaf.numKeys > minKeys) {
         int i = 0;
         while (i < leaf.numKeys && leaf.recordIDs[i] != RecordID) i++;
