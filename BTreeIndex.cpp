@@ -5,7 +5,7 @@
 using namespace std;
 
 // ============================================================================
-// GLOBAL HISTORY STACK (Member 1 - Helper)
+// GLOBAL HISTORY STACK
 // ============================================================================
 int historyStack[MAX_HISTORY];
 int historyTop = -1;
@@ -33,7 +33,7 @@ Node::Node() {
 }
 
 // ============================================================================
-// MEMBER 1: FUNCTION 1 - Create Index File
+// Eyad: FUNCTION 1 - Create Index File
 // ============================================================================
 
 void CreateIndexFileFile(char* filename, int numberOfRecords, int m) {
@@ -44,15 +44,26 @@ void CreateIndexFileFile(char* filename, int numberOfRecords, int m) {
         return;
     }
 
-    // Node 0 is the Free List Head
-    // It points to the first empty node (node 1)
+    // Node 0 is the Free List Head + Metadata
+    // Store m in the numKeys field for later retrieval
+    // Store root index in recordIDs[0]
+    // Free list starts from Node 2 (Node 1 is the root)
     Node freeListHead;
     freeListHead.flag = -1;  // Special flag for free list head
-    freeListHead.nextFree = 1;  // Points to first empty node
+    freeListHead.numKeys = m;  // Store m here for retrieval by other functions
+    freeListHead.recordIDs[0] = 1;  // Store root node index (initially Node 1)
+    freeListHead.nextFree = 2;  // Points to first free node (skip Node 1 which is root)
     file.write((char*)&freeListHead, sizeof(Node));
 
-    // Create all empty nodes in a linked list
-    for (int i = 1; i < numberOfRecords; i++) {
+    // Node 1 is the root - initialize as empty LEAF
+    Node rootNode;
+    rootNode.flag = 0;      // Leaf node
+    rootNode.numKeys = 0;   // Empty
+    rootNode.nextFree = -1; // Not in free list
+    file.write((char*)&rootNode, sizeof(Node));
+
+    // Create remaining empty nodes in a linked list (starting from Node 2)
+    for (int i = 2; i < numberOfRecords; i++) {
         Node emptyNode;
         emptyNode.flag = -1;  // Mark as free
 
@@ -68,12 +79,12 @@ void CreateIndexFileFile(char* filename, int numberOfRecords, int m) {
 
     file.close();
     cout << "Index file '" << filename << "' created with " << numberOfRecords
-         << " empty nodes (m=" << m << ")" << endl;
+         << " nodes (m=" << m << "), Node 1 initialized as root" << endl;
 }
 
 
 // ============================================================================
-// MEMBER 1: FUNCTION 2 - Display Index File Content
+// Eyad: FUNCTION 2 - Display Index File Content
 // ============================================================================
 void DisplayIndexFileContent(char* filename) {
     ifstream file(filename, ios::binary);
@@ -93,6 +104,8 @@ void DisplayIndexFileContent(char* filename) {
         cout << "\nNode Index: " << index << endl;
         if (index == 0) {
             cout << "  Type: FREE LIST HEAD" << endl;
+            cout << "  Root Index: " << node.recordIDs[0] << endl;
+            cout << "  B-Tree Order (m): " << node.numKeys << endl;
             cout << "  Next Free: " << node.nextFree << endl;
         } else if (node.flag == -1) {
             cout << "  Type: FREE NODE" << endl;
@@ -125,7 +138,7 @@ void DisplayIndexFileContent(char* filename) {
 }
 
 // ============================================================================
-// MEMBER 1: FUNCTION 3 - Search for a Record
+// Eyad: FUNCTION 3 - Search for a Record
 // ============================================================================
 int SearchARecord(char* filename, int RecordID) {
     ifstream file(filename, ios::binary);
@@ -137,7 +150,11 @@ int SearchARecord(char* filename, int RecordID) {
 
     clearHistory();
 
-    int currentIndex = 1;
+    // Read root index from Node 0
+    Node freeListHead;
+    file.seekg(0, ios::beg);
+    file.read((char*)&freeListHead, sizeof(Node));
+    int currentIndex = freeListHead.recordIDs[0];  // Root node index
     Node currentNode;
 
     while (currentIndex != -1 && currentIndex != 0) {
@@ -181,7 +198,7 @@ int SearchARecord(char* filename, int RecordID) {
 }
 
 // ============================================================================
-// MEMBER 3: Split Node and Recursive Promotion
+// Jana: Split Node and Recursive Promotion
 // ============================================================================
 int SplitNodeAndInsert(fstream &file, int nodeIndex, int RecordID, int Reference, int m, int &newChildIndex) {
     Node fullNode;
@@ -259,14 +276,20 @@ int SplitNodeAndInsert(fstream &file, int nodeIndex, int RecordID, int Reference
 }
 
 // ============================================================================
-// MEMBER 2 & 3: Insert New Record (Recursive for Parent Split)
+// Moaid & Jana: Insert New Record (Recursive for Parent Split)
 // ============================================================================
-int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference, int m) {
+int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference) {
     fstream file(filename, ios::binary | ios::in | ios::out);
     if (!file.is_open()) {
         cerr << "Error opening index file.\n";
         return -1;
     }
+
+    // Read m from Node 0 (Free List Head) - stored in numKeys field
+    Node freeListHead;
+    file.seekg(0, ios::beg);
+    file.read((char*)&freeListHead, sizeof(Node));
+    int m = freeListHead.numKeys;  // m is stored here during CreateIndexFileFile
 
     int searchResult = SearchARecord(filename, RecordID);
     if (searchResult != -1) {
@@ -306,7 +329,7 @@ int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference, int m) {
     }
 
     // Node full → Split
-    cout << "Leaf node " << leafIndex << " is full. Split required (Member 3).\n";
+    cout << "Leaf node " << leafIndex << " is full. Split required.\n";
 
     int newChildIndex;
     int promotedKey = SplitNodeAndInsert(file, leafIndex, RecordID, Reference, m, newChildIndex);
@@ -350,21 +373,22 @@ int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference, int m) {
     newRoot.flag = 1;
     newRoot.numKeys = 1;
     newRoot.recordIDs[0] = promotedKey;
-    newRoot.children[0] = leafIndex;
-    newRoot.children[1] = newChildIndex;
+    newRoot.children[0] = childIndex;  // Left child is the old root that was split
+    newRoot.children[1] = newChildIndex;  // Right child is the new node from split
 
-    Node freeListHead;
+    Node rootFreeListHead;
     file.seekg(0, ios::beg);
-    file.read((char*)&freeListHead, sizeof(Node));
+    file.read((char*)&rootFreeListHead, sizeof(Node));
 
-    int newRootIndex = freeListHead.nextFree;
+    int newRootIndex = rootFreeListHead.nextFree;
     Node tempFreeNode;
     file.seekg(newRootIndex * sizeof(Node), ios::beg);
     file.read((char*)&tempFreeNode, sizeof(Node));
 
-    freeListHead.nextFree = tempFreeNode.nextFree;
+    rootFreeListHead.nextFree = tempFreeNode.nextFree;
+    rootFreeListHead.recordIDs[0] = newRootIndex;  // Update root index in Node 0
     file.seekp(0, ios::beg);
-    file.write((char*)&freeListHead, sizeof(Node));
+    file.write((char*)&rootFreeListHead, sizeof(Node));
 
     file.seekp(newRootIndex * sizeof(Node), ios::beg);
     file.write((char*)&newRoot, sizeof(Node));
@@ -375,7 +399,7 @@ int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference, int m) {
 }
 
 // ============================================================================
-// MEMBER 4 & 5: Delete Record (STUB)
+// Yassin & Pedro: Delete Record
 // ============================================================================
 bool hasLeftSibling(fstream &file, int parentIndex, int nodeIndex, int &leftSiblingIndex) {
     return leftSiblingIndex != -1;
@@ -404,6 +428,7 @@ int borrowFromLeftSibling(fstream &file, int parentIndex,int nodeIndex, int left
     file.write((char*)&node, sizeof(Node));
     file.seekp(leftSiblingIndex * sizeof(Node), ios::beg);
     file.write((char*)&leftSibling, sizeof(Node));
+    return 0;
 }
 
 int borrowFromRightSibling(fstream &file, int parentIndex, int nodeIndex, int rightSiblingIndex, int m) {
@@ -429,6 +454,7 @@ int borrowFromRightSibling(fstream &file, int parentIndex, int nodeIndex, int ri
     file.write((char*)&node, sizeof(Node));
     file.seekp(rightSiblingIndex * sizeof(Node), ios::beg);
     file.write((char*)&rightSibling, sizeof(Node));
+    return 0;
 }
 
 void mergeWithLeft(fstream &file, int parentIndex,int nodeIndex, int siblingIndex, bool isLeftSibling, int m) {
@@ -502,14 +528,18 @@ void mergeWithRight(fstream &file, int parentIndex,int nodeIndex, int siblingInd
 }
 
 
-void DeleteRecordFromIndex(char *filename, int RecordID, int m) {
-    // TODO: Member 4 - Handle finding record and leaf deletion
-    // TODO: Member 5 - Handle Underflow (Merge/Borrow) and rebalancing
+void DeleteRecordFromIndex(char *filename, int RecordID) {
     fstream file(filename, ios::binary | ios::in | ios::out);
     if (!file.is_open()) {
         cerr << "Error opening index file.\n";
         return;
     }
+
+    // Read m from Node 0 (Free List Head) - stored in numKeys field
+    Node freeListHead;
+    file.seekg(0, ios::beg);
+    file.read((char*)&freeListHead, sizeof(Node));
+    int m = freeListHead.numKeys;  // m is stored here during CreateIndexFileFile
 
     int searchResult = SearchARecord(filename, RecordID);
 
@@ -546,7 +576,7 @@ void DeleteRecordFromIndex(char *filename, int RecordID, int m) {
 
     file.seekg(leafIndex * sizeof(Node), ios::beg);
     file.read((char *) &leaf, sizeof(Node));
-    int minKeys = ceil(m / 2);
+    int minKeys = (int)ceil(m / 2.0);
     if (leaf.numKeys > minKeys) {
         int i = 0;
         while (i < leaf.numKeys && leaf.recordIDs[i] != RecordID) i++;
