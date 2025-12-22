@@ -739,10 +739,10 @@ void DisplayTreeLevelOrder(char* filename) {
 // Yassin & Pedro: Delete Record
 // ============================================================================
 
-bool hasLeftSibling(int &leftSiblingIndex) {
+bool hasLeftSibling(fstream &file, int parentIndex, int nodeIndex, int &leftSiblingIndex) {
     return leftSiblingIndex != -1;
 }
-bool hasRightSibling(int &rightSiblingIndex) {
+bool hasRightSibling(fstream &file, int parentIndex, int nodeIndex, int &rightSiblingIndex) {
     return rightSiblingIndex != -1;
 }
 
