@@ -22,9 +22,10 @@ int main() {
         cout << "3. Search Record" << endl;
         cout << "4. Delete Record" << endl;
         cout << "5. Display File Content" << endl;
-        cout << "6. Exit" << endl;
+        cout << "6. Display Tree (Level-Order Visualization)" << endl;
+        cout << "7. Exit" << endl;
         cout << "==================================================" << endl;
-        cout << "Enter your choice (1-6): ";
+        cout << "Enter your choice (1-7): ";
         cin >> choice;
 
         switch (choice) {
@@ -102,6 +103,16 @@ int main() {
             }
 
             case 6: {
+                // Display Tree (Level-Order Visualization)
+                if (!fileCreated) {
+                    cout << "\nError: Please create index file first (Option 1)" << endl;
+                    break;
+                }
+                DisplayTreeLevelOrder(filename);
+                break;
+            }
+
+            case 7: {
                 // Exit
                 cout << "\nExiting B-Tree Index Management System..." << endl;
                 cout << "Goodbye!" << endl;
@@ -109,7 +120,7 @@ int main() {
             }
 
             default: {
-                cout << "\nInvalid choice! Please enter a number between 1 and 6." << endl;
+                cout << "\nInvalid choice! Please enter a number between 1 and 7." << endl;
             }
         }
     }

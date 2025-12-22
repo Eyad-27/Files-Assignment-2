@@ -55,5 +55,8 @@ int InsertNewRecordAtIndex(char* filename, int RecordID, int Reference);
 // Yassin & Pedro: Delete Record
 void DeleteRecordFromIndex(char* filename, int RecordID);
 
+// Level-Order Visualization with Parent Links
+void DisplayTreeLevelOrder(char* filename);
+
 #endif // BTREEINDEX_H
 
